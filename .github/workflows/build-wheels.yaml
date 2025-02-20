@@ -15,7 +15,22 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: "3.8"
+          python-version: "3.11"
+      - name: Upgrade pip
+        run: python -m pip install --upgrade pip
+
+      - name: Install system dependencies (Ubuntu)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y cmake g++ libboost-all-dev
+
+      - name: Install system dependencies (MacOS)
+        if: runner.os == 'macOS'
+        run: brew install cmake boost
+
+      - name: Install system dependencies (Windows)
+        if: runner.os == 'Windows'
+        run: choco install cmake visualstudio2019buildtools -y
+
       - name: Install cibuildwheel
         run: pip install cibuildwheel
       - name: Build wheels
