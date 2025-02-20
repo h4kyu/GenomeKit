@@ -25,7 +25,7 @@ jobs:
 
       - name: Install system dependencies (MacOS)
         if: runner.os == 'macOS'
-        run: brew install cmake boost
+        run: brew install cmake boost fmt zlib
 
       - name: Install system dependencies (Windows)
         if: runner.os == 'Windows'
