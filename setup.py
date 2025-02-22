@@ -2,7 +2,19 @@
 
 from setuptools import setup, find_packages
 from setuptools.command.egg_info import egg_info
+
+# Ensure NumPy is available before importing c_ext
+try:
+    import numpy
+except ImportError:
+    setuptools.dist.Distribution().fetch_build_eggs(["numpy"])
+    import numpy
+
 from setup import c_ext
+
+setuptools.setup(
+    install_requires=["numpy"],
+)
 
 COPYRIGHT_FILE = "COPYRIGHT.txt"
 LICENSE_FILE = "LICENSE"
