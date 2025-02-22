@@ -31,6 +31,9 @@ jobs:
         if: runner.os == 'Windows'
         run: choco install cmake visualstudio2019buildtools -y
 
+      - name: Install numpy
+        run: pip install numpy
+
       - name: Install cibuildwheel
         run: pip install cibuildwheel
       - name: Build wheels
