@@ -37,7 +37,7 @@ jobs:
       - name: Install cibuildwheel
         run: pip install cibuildwheel
       - name: Build wheels
-        run: cd GenomeKit && cibuildwheel --output-dir dist
+        run: ls && pwd && cibuildwheel --output-dir dist
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
