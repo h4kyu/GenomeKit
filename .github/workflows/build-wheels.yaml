@@ -32,12 +32,12 @@ jobs:
         run: choco install cmake visualstudio2019buildtools -y
 
       - name: Install numpy
-        run: pip install numpy
+        run: pip install numpy # ***SPECIFY VERSION TODO***
 
       - name: Install cibuildwheel
         run: pip install cibuildwheel
       - name: Build wheels
-        run: cibuildwheel --output-dir dist
+        run: cd GenomeKit && cibuildwheel --output-dir dist
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
