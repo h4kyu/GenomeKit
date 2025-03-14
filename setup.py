@@ -139,6 +139,15 @@ if toolset == "gcc":
             ("_LIBCPP_DISABLE_AVAILABILITY", None),
         ]
 
+        # Try both common brew locations (Apple Silicon and Intel)
+        for path in ["/opt/homebrew/include", "/usr/local/include"]:
+            if os.path.exists(path):
+                include_dirs.append(path)
+        for path in ["/opt/homebrew/lib", "/usr/local/lib"]:
+            if os.path.exists(path):
+                library_dirs.append(path)
+
+
     extra_compile_args += opt_args
     extra_link_args += opt_args  # required for LTO
 
