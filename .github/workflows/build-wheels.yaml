@@ -2,7 +2,7 @@ name: build-wheels.yaml
 
 on:
   push:
-    branches: [main]
+    branches: [feature/build-wheels-pypi-dist]
   pull_request:
 
 jobs:
