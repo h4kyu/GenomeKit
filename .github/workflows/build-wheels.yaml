@@ -34,6 +34,9 @@ jobs:
           echo "🔍 Running ldd on built extension(s)..."
           find build -name '*.so' -exec echo "🔗 ldd {}" \; -exec ldd {} \;
 
+      - name: Show all .so files in repo before auditwheel
+        run: find . -name "*.so"
+
       - name: Install auditwheel
         run: python -m pip install auditwheel
 
