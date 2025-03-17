@@ -416,7 +416,7 @@ if __name__ == "__main__":
         license_files=(COPYRIGHT_FILE, LICENSE_FILE,),
         name="genomekit",
         packages=find_packages(include=["genome_kit"]),
-        package_data={"genome_kit": ["*.so"]},
+        package_data={},
         include_package_data=True,
         project_urls={
             "Documentation": "https://deepgenomics.github.io/GenomeKit"
