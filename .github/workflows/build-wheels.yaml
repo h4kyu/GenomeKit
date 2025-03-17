@@ -29,7 +29,6 @@ jobs:
       - name: Clean build dirs
         run: rm -rf build dist genome_kit/*.so
 
-
       - name: Build wheel (no isolation)
         run: python setup.py bdist_wheel
 
@@ -50,6 +49,10 @@ jobs:
           for whl in dist/*.whl; do
             auditwheel repair "$whl" --plat linux_x86_64 -w repaired_wheels/
           done
+
+      - name: List .so files inside final wheel
+        run: |
+          unzip -l repaired_wheels/*.whl | grep '\.so'
 
       - uses: actions/upload-artifact@v4
         with:
