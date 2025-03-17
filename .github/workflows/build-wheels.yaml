@@ -1,4 +1,4 @@
-name: build-wheels.yaml
+name: build-wheels
 
 on:
   push:
@@ -10,66 +10,112 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
+      - name: Checkout source
         uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Set up Python (for tooling)
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
 
-      - name: Install build dependencies
-        run: python -m pip install -U pip wheel setuptools numpy
+      - name: Install cibuildwheel
+        run: python -m pip install cibuildwheel==2.16.5
 
-      - name: Install system libraries
+      - name: Build wheels with cibuildwheel
+        env:
+          CIBW_BUILD: cp312-manylinux_x86_64
+          CIBW_SKIP: "*-musllinux*"
+          CIBW_ARCHS_LINUX: auto
+          CIBW_ENVIRONMENT: >
+            CXXFLAGS="-fvisibility=hidden -fvisibility-inlines-hidden -fPIC"
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libfmt-dev patchelf
-
-      - name: Clean build dirs
-        run: rm -rf build dist genome_kit/*.so
-
-      - name: Build wheel (no isolation)
-        run: python setup.py bdist_wheel
-
-      - name: Inspect linked libraries of C++ extension
-        run: |
-          echo "🔍 Running ldd on built extension(s)..."
-          find build -name '*.so' -exec echo "🔗 ldd {}" \; -exec ldd {} \;
-
-      - name: List all .so files before repair
-        run: find . -name "*.so"
-
-      - name: Install auditwheel
-        run: python -m pip install auditwheel
-
-      - name: Bundle .so dependencies using auditwheel
-        run: |
-          mkdir -p repaired_wheels
-          for whl in dist/*.whl; do
-            auditwheel repair "$whl" --plat linux_x86_64 -w repaired_wheels/
-          done
-
-      - name: List .so files inside final wheel
-        run: |
-          unzip -l repaired_wheels/*.whl | grep '\.so'
-          
-
-      - name: Remove system libraries from wheel (keep stdc++, gcc_s, z, fmt)
-        run: |
-          for whl in repaired_wheels/*.whl; do
-            unzip -q "$whl" -d wheel_contents
-            rm -v wheel_contents/genomekit.libs/libc-*.so.*
-            rm -v wheel_contents/genomekit.libs/libm-*.so.*
-            (cd wheel_contents && zip -r "../cleaned-$(basename "$whl")" .)
-            rm -rf wheel_contents
-          done
-      
+          python -m cibuildwheel --output-dir wheelhouse
 
       - uses: actions/upload-artifact@v4
         with:
           name: genomekit-wheels-linux
-          path: cleaned-*.whl
+          path: wheelhouse/*.whl
+
+      - name: Show bundled .so files (for debug)
+        run: unzip -l wheelhouse/*.whl | grep '\.so'
+
+
+
+
+
+
+#name: build-wheels.yaml
+#
+#on:
+#  push:
+#    branches: [feature/build-wheels-pypi-dist]
+#  pull_request:
+
+#jobs:
+#  build:
+#    runs-on: ubuntu-latest
+#
+#    steps:
+#      - name: Checkout code
+#        uses: actions/checkout@v4
+#
+#      - name: Set up Python
+#        uses: actions/setup-python@v5
+#        with:
+#          python-version: '3.12'
+#
+#      - name: Install build dependencies
+#        run: python -m pip install -U pip wheel setuptools numpy
+#
+#      - name: Install system libraries
+#        run: |
+#          sudo apt-get update
+#          sudo apt-get install -y libfmt-dev patchelf
+#
+#      - name: Clean build dirs
+#        run: rm -rf build dist genome_kit/*.so
+#
+#      - name: Build wheel (no isolation)
+#        run: python setup.py bdist_wheel
+#
+#      - name: Inspect linked libraries of C++ extension
+#        run: |
+#          echo "🔍 Running ldd on built extension(s)..."
+#          find build -name '*.so' -exec echo "🔗 ldd {}" \; -exec ldd {} \;
+#
+#      - name: List all .so files before repair
+#        run: find . -name "*.so"
+#
+#      - name: Install auditwheel
+#        run: python -m pip install auditwheel
+#
+#      - name: Bundle .so dependencies using auditwheel
+#        run: |
+#          mkdir -p repaired_wheels
+#          for whl in dist/*.whl; do
+#            auditwheel repair "$whl" --plat linux_x86_64 -w repaired_wheels/
+#          done
+#
+#      - name: List .so files inside final wheel
+#        run: |
+#          unzip -l repaired_wheels/*.whl | grep '\.so'
+#
+#
+#      - name: Remove system libraries from wheel (keep stdc++, gcc_s, z, fmt)
+#        run: |
+#          for whl in repaired_wheels/*.whl; do
+#            unzip -q "$whl" -d wheel_contents
+#            rm -v wheel_contents/genomekit.libs/libc-*.so.*
+#            rm -v wheel_contents/genomekit.libs/libm-*.so.*
+#            (cd wheel_contents && zip -r "../cleaned-$(basename "$whl")" .)
+#            rm -rf wheel_contents
+#          done
+#
+#
+#      - uses: actions/upload-artifact@v4
+#        with:
+#          name: genomekit-wheels-linux
+#          path: cleaned-*.whl
 
 #      - uses: actions/upload-artifact@v4
 #        with:
