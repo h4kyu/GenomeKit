@@ -63,7 +63,7 @@ jobs:
             rm -v wheel_contents/genomekit.libs/libstdc++-*.so.*
             rm -v wheel_contents/genomekit.libs/libgcc_s-*.so.*
             rm -v wheel_contents/genomekit.libs/libm-*.so.*
-            rm -v wheel_contents/genomekit.libs/libz-*.so.* || true  # optional, if zlib is system-installed
+#            rm -v wheel_contents/genomekit.libs/libz-*.so.* || true  # optional, if zlib is system-installed
             (cd wheel_contents && zip -r "../cleaned-$(basename "$whl")" .)
             rm -rf wheel_contents
           done
