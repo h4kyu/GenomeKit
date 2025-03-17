@@ -32,17 +32,18 @@ jobs:
       - name: Install auditwheel
         run: python -m pip install auditwheel
 
-      - name: Repair wheel with auditwheel
+      - name: Bundle .so dependencies using auditwheel
         run: |
           mkdir -p repaired_wheels
           for whl in dist/*.whl; do
-            auditwheel repair "$whl" --plat manylinux_2_28_x86_64 -w repaired_wheels/
+            auditwheel repair "$whl" --plat linux_x86_64 -w repaired_wheels/
           done
 
       - uses: actions/upload-artifact@v4
         with:
           name: genomekit-wheels-linux
           path: repaired_wheels/*.whl
+
 
 
 
