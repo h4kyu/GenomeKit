@@ -235,10 +235,15 @@ extension = Extension(
     include_dirs=include_dirs,
     define_macros=define_macros,
     library_dirs=library_dirs,
-    libraries=libraries,
+    # libraries=libraries,
+    libraries=["fmt", "z"],
     runtime_library_dirs=runtime_library_dirs,
     extra_compile_args=extra_compile_args,
-    extra_link_args=extra_link_args,
+    # extra_link_args=extra_link_args,
+    extra_link_args=[
+        "-Wl,--as-needed",  # only link what's used
+        "-Wl,--exclude-libs,ALL",  # prevent static linkage
+    ]
     )
 
 ##############################################################
@@ -416,8 +421,8 @@ if __name__ == "__main__":
         license_files=(COPYRIGHT_FILE, LICENSE_FILE,),
         name="genomekit",
         packages=find_packages(include=["genome_kit"]),
-        package_data={},
-        include_package_data=True,
+        # package_data={},
+        # include_package_data=True,
         project_urls={
             "Documentation": "https://deepgenomics.github.io/GenomeKit"
         },
