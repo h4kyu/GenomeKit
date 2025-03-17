@@ -55,17 +55,16 @@ jobs:
           unzip -l repaired_wheels/*.whl | grep '\.so'
           
 
-      - name: Remove system libraries from wheel
+      - name: Remove system libraries from wheel (keep stdc++, gcc_s, z, fmt)
         run: |
           for whl in repaired_wheels/*.whl; do
             unzip -q "$whl" -d wheel_contents
             rm -v wheel_contents/genomekit.libs/libc-*.so.*
-            rm -v wheel_contents/genomekit.libs/libstdc++-*.so.*
-            rm -v wheel_contents/genomekit.libs/libgcc_s-*.so.*
             rm -v wheel_contents/genomekit.libs/libm-*.so.*
             (cd wheel_contents && zip -r "../cleaned-$(basename "$whl")" .)
             rm -rf wheel_contents
           done
+      
 
       - uses: actions/upload-artifact@v4
         with:
