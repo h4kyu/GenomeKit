@@ -53,11 +53,30 @@ jobs:
       - name: List .so files inside final wheel
         run: |
           unzip -l repaired_wheels/*.whl | grep '\.so'
+          
+
+      - name: Remove system libraries from wheel
+        run: |
+          for whl in repaired_wheels/*.whl; do
+            unzip -q "$whl" -d wheel_contents
+            rm -v wheel_contents/genomekit.libs/libc-*.so.*
+            rm -v wheel_contents/genomekit.libs/libstdc++-*.so.*
+            rm -v wheel_contents/genomekit.libs/libgcc_s-*.so.*
+            rm -v wheel_contents/genomekit.libs/libm-*.so.*
+            rm -v wheel_contents/genomekit.libs/libz-*.so.* || true  # optional, if zlib is system-installed
+            (cd wheel_contents && zip -r "../cleaned-$(basename "$whl")" .)
+            rm -rf wheel_contents
+          done
 
       - uses: actions/upload-artifact@v4
         with:
           name: genomekit-wheels-linux
-          path: repaired_wheels/*.whl
+          path: cleaned-*.whl
+
+#      - uses: actions/upload-artifact@v4
+#        with:
+#          name: genomekit-wheels-linux
+#          path: repaired_wheels/*.whl
 
 
 
