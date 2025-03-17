@@ -235,15 +235,15 @@ extension = Extension(
     include_dirs=include_dirs,
     define_macros=define_macros,
     library_dirs=library_dirs,
-    # libraries=libraries,
-    libraries=["fmt", "z"],
+    libraries=libraries,
+    # libraries=["fmt", "z"],
     runtime_library_dirs=runtime_library_dirs,
     extra_compile_args=extra_compile_args,
-    # extra_link_args=extra_link_args,
-    extra_link_args=[
-        "-Wl,--as-needed",  # only link what's used
-        "-Wl,--exclude-libs,ALL",  # prevent static linkage
-    ]
+    extra_link_args=extra_link_args,
+    # extra_link_args=[
+    #     "-Wl,--as-needed",  # only link what's used
+    #     "-Wl,--exclude-libs,ALL",  # prevent static linkage
+    # ]
     )
 
 ##############################################################
