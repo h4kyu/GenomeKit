@@ -27,9 +27,6 @@ jobs:
           CIBW_SKIP: "*-musllinux*"
           CIBW_ARCHS_LINUX: auto
           CIBW_MANYLINUX_X86_64_IMAGE: quay.io/pypa/manylinux_2_28_x86_64
-          CIBW_ENVIRONMENT: >
-            CXXFLAGS="-fvisibility=hidden -fvisibility-inlines-hidden -fPIC"
-            LDFLAGS="-L/usr/local/lib"
           CIBW_BEFORE_ALL_LINUX: |
             dnf install -y cmake make gcc-c++ curl
             cd /tmp
@@ -38,6 +35,10 @@ jobs:
             cmake -DBUILD_SHARED_LIBS=TRUE -DCMAKE_POSITION_INDEPENDENT_CODE=TRUE -DCMAKE_INSTALL_PREFIX=/usr/local .
             make -j$(nproc)
             make install
+          CIBW_BEFORE_BUILD: "pip install numpy"
+          CIBW_ENVIRONMENT: >
+            CXXFLAGS="-fvisibility=hidden -fvisibility-inlines-hidden -fPIC"
+            LDFLAGS="-L/usr/local/lib"
         run: |
           python -m cibuildwheel --output-dir wheelhouse
 
@@ -45,6 +46,7 @@ jobs:
         with:
           name: genomekit-wheels-linux
           path: wheelhouse/*.whl
+
 
 
 
