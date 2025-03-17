@@ -29,6 +29,11 @@ jobs:
       - name: Build wheel (no isolation)
         run: python setup.py bdist_wheel
 
+      - name: Inspect linked libraries of C++ extension
+        run: |
+          echo "🔍 Running ldd on built extension(s)..."
+          find build -name '*.so' -exec echo "🔗 ldd {}" \; -exec ldd {} \;
+
       - name: Install auditwheel
         run: python -m pip install auditwheel
 
@@ -43,6 +48,7 @@ jobs:
         with:
           name: genomekit-wheels-linux
           path: repaired_wheels/*.whl
+
 
 
 
