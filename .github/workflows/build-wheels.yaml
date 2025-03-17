@@ -26,6 +26,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libfmt-dev patchelf
 
+      - name: Clean build dirs
+        run: rm -rf build dist genome_kit/*.so
+
+
       - name: Build wheel (no isolation)
         run: python setup.py bdist_wheel
 
@@ -34,7 +38,7 @@ jobs:
           echo "🔍 Running ldd on built extension(s)..."
           find build -name '*.so' -exec echo "🔗 ldd {}" \; -exec ldd {} \;
 
-      - name: Show all .so files in repo before auditwheel
+      - name: List all .so files before repair
         run: find . -name "*.so"
 
       - name: Install auditwheel
