@@ -27,9 +27,14 @@ jobs:
           CIBW_SKIP: "*-musllinux*"
           CIBW_ARCHS_LINUX: auto
           CIBW_ENVIRONMENT: >
+            CC=/opt/rh/devtoolset-11/root/usr/bin/gcc
+            CXX=/opt/rh/devtoolset-11/root/usr/bin/g++
             CXXFLAGS="-fvisibility=hidden -fvisibility-inlines-hidden -fPIC"
           CIBW_BEFORE_ALL_LINUX: |
-            yum install -y cmake make gcc-c++
+            yum install -y centos-release-scl
+            yum install -y devtoolset-11 cmake make gcc gcc-c++
+            source scl_source enable devtoolset-11
+
             cd /tmp
             curl -L https://github.com/fmtlib/fmt/archive/refs/tags/9.1.0.tar.gz | tar xz
             cd fmt-9.1.0
@@ -43,6 +48,7 @@ jobs:
         with:
           name: genomekit-wheels-linux
           path: wheelhouse/*.whl
+
 
 
 
