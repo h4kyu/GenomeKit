@@ -19,27 +19,37 @@ jobs:
       - name: Build and repair wheels inside manylinux container
         run: |
           docker run --rm -v $(pwd):/io quay.io/pypa/manylinux2014_x86_64 /bin/bash -c "
-            # Use Python 3.12 from manylinux
-            export PYTHON=/opt/python/cp312-cp312/bin/python
-            \$PYTHON -m pip install -U pip wheel setuptools
-            \$PYTHON -m pip install numpy importlib_metadata appdirs cmake pybind11 auditwheel
+            set -e
 
+            # Use Python 3.12
+            export PYTHON=/opt/python/cp312-cp312/bin/python
+            \$PYTHON -m pip install -U pip wheel setuptools cmake auditwheel numpy
+
+            # Build libfmt from source (no apt!)
+            cd /tmp
+            git clone --depth=1 https://github.com/fmtlib/fmt.git
+            cd fmt
+            cmake -DCMAKE_POSITION_INDEPENDENT_CODE=TRUE -DFMT_INSTALL=ON .
+            make -j\$(nproc)
+            make install
             cd /io
+
             rm -rf build dist genome_kit/*.so
 
             echo '📦 Building wheel...'
             \$PYTHON setup.py bdist_wheel
 
-            echo '🔍 Checking linked libraries...'
-            find build -name '*.so' -exec echo {} \; -exec ldd {} \;
+            echo '🧪 Checking linked libs...'
+            find build -name '*.so' -exec ldd {} \;
 
-            echo '🧪 Running auditwheel show...'
+            echo '🧪 Checking wheel before repair...'
             auditwheel show dist/*.whl
 
             echo '🔧 Repairing wheel...'
             mkdir -p repaired_wheels
             auditwheel repair dist/*.whl -w repaired_wheels
           "
+      
 
       - name: Upload final wheels
         uses: actions/upload-artifact@v4
