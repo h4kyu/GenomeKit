@@ -16,16 +16,16 @@ jobs:
       - name: Pull manylinux image
         run: docker pull quay.io/pypa/manylinux2014_x86_64
 
-      - name: Build and repair wheels inside manylinux container
+      - name: Build and repair wheels inside manylinux_2_28 container
         run: |
-          docker run --rm -v $(pwd):/io quay.io/pypa/manylinux2014_x86_64 /bin/bash -c "
+          docker run --rm -v $(pwd):/io quay.io/pypa/manylinux_2_28_x86_64 /bin/bash -c "
             set -e
 
-            # Use Python 3.12
+            # Select Python version
             export PYTHON=/opt/python/cp312-cp312/bin/python
             \$PYTHON -m pip install -U pip wheel setuptools cmake auditwheel numpy
 
-            # Build libfmt from source (no apt!)
+            # Build libfmt from source
             cd /tmp
             git clone --depth=1 https://github.com/fmtlib/fmt.git
             cd fmt
@@ -34,20 +34,21 @@ jobs:
             make install
             cd /io
 
+            # Clean old builds
             rm -rf build dist genome_kit/*.so
 
             echo '📦 Building wheel...'
             \$PYTHON setup.py bdist_wheel
 
-            echo '🧪 Checking linked libs...'
+            echo '🔍 Checking linked libraries...'
             find build -name '*.so' -exec ldd {} \;
 
-            echo '🧪 Checking wheel before repair...'
+            echo '🧪 Showing wheel info...'
             auditwheel show dist/*.whl
 
             echo '🔧 Repairing wheel...'
             mkdir -p repaired_wheels
-            auditwheel repair dist/*.whl -w repaired_wheels
+            auditwheel repair dist/*.whl --plat manylinux_2_28_x86_64 -w repaired_wheels
           "
       
 

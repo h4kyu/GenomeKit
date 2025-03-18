@@ -34,7 +34,7 @@ chrom_t chrom_names_t::as_chrom(std::string_view chr) const
 		return tag;
 	}
 
-	const auto it = _aliases.find(std::string(chr));
+	const auto it = _aliases.find(chr);
 	GK_CHECK(it != std::cend(_aliases), value, "Contig not found: '{0}' on '{1}.chrom.sizes/{1}.chromAlias.txt'.", chr,
 			 _refg_name);
 	return it->second;
