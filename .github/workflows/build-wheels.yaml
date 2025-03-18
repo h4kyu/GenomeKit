@@ -1,3 +1,10 @@
+name: build-wheels.yaml
+
+on:
+  push:
+    branches: [feature/build-wheels-pypi-dist]
+  pull_request:
+
 jobs:
   build:
     runs-on: ubuntu-latest
