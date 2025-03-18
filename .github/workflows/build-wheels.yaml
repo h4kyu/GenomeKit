@@ -4,67 +4,45 @@ on:
   push:
     branches: [feature/build-wheels-pypi-dist]
   pull_request:
-    
+
 jobs:
   build:
     runs-on: ubuntu-latest
-    container: quay.io/pypa/manylinux2014_x86_64  # 🆕 Use manylinux container to make auditwheel compatible
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        # 🆕 manylinux comes with prebuilt Python versions, so no need for setup-python
+      - name: Pull manylinux image
+        run: docker pull quay.io/pypa/manylinux2014_x86_64
+
+      - name: Build and repair wheels inside manylinux container
         run: |
-          export PATH="/opt/python/cp312-cp312/bin:$PATH"
-          python -m pip install -U pip wheel setuptools
+          docker run --rm -v $(pwd):/io quay.io/pypa/manylinux2014_x86_64 /bin/bash -c "
+            # Use Python 3.12 from manylinux
+            export PYTHON=/opt/python/cp312-cp312/bin/python
+            \$PYTHON -m pip install -U pip wheel setuptools
+            \$PYTHON -m pip install numpy importlib_metadata appdirs cmake pybind11 auditwheel
 
-      - name: Install build dependencies
-        run: |
-          export PATH="/opt/python/cp312-cp312/bin:$PATH"
-          python -m pip install numpy importlib_metadata appdirs cmake pybind11
+            cd /io
+            rm -rf build dist genome_kit/*.so
 
-      - name: Install system libraries
-        run: |
-          yum update -y       # 🆕 Use `yum` inside manylinux image, not `apt`
-          yum install -y libstdc++ libstdc++-devel libfmt-devel patchelf
+            echo '📦 Building wheel...'
+            \$PYTHON setup.py bdist_wheel
 
-      - name: Clean build dirs
-        run: rm -rf build dist genome_kit/*.so
+            echo '🔍 Checking linked libraries...'
+            find build -name '*.so' -exec echo {} \; -exec ldd {} \;
 
-      - name: Build wheel (no isolation)
-        run: |
-          export PATH="/opt/python/cp312-cp312/bin:$PATH"
-          python setup.py bdist_wheel
+            echo '🧪 Running auditwheel show...'
+            auditwheel show dist/*.whl
 
-      - name: Inspect linked libraries of C++ extension
-        run: |
-          echo "🔍 Running ldd on built extension(s)..."
-          find build -name '*.so' -exec echo "🔗 ldd {}" \; -exec ldd {} \;
+            echo '🔧 Repairing wheel...'
+            mkdir -p repaired_wheels
+            auditwheel repair dist/*.whl -w repaired_wheels
+          "
 
-      - name: Pre-repair auditwheel check
-        run: |
-          echo "🔬 auditwheel show output:"
-          auditwheel show dist/*.whl
-
-      - name: Install auditwheel
-        run: |
-          export PATH="/opt/python/cp312-cp312/bin:$PATH"
-          python -m pip install auditwheel
-
-      - name: Bundle .so dependencies using auditwheel
-        run: |
-          mkdir -p repaired_wheels
-          for whl in dist/*.whl; do
-            auditwheel repair "$whl" --plat manylinux2014_x86_64 -w repaired_wheels/
-          done
-
-      - name: List .so files inside final wheel
-        run: |
-          unzip -l repaired_wheels/*.whl | grep '\.so'
-
-      - uses: actions/upload-artifact@v4
+      - name: Upload final wheels
+        uses: actions/upload-artifact@v4
         with:
           name: genomekit-wheels-linux
           path: repaired_wheels/*.whl
