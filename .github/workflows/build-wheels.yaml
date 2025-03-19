@@ -1,4 +1,4 @@
-name: build-wheels.yaml
+name: Build Wheels
 
 on:
   push:
@@ -13,19 +13,19 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Pull manylinux image
-        run: docker pull quay.io/pypa/manylinux2014_x86_64
+      - name: Pull manylinux image (just for caching)
+        run: docker pull quay.io/pypa/manylinux_2_28_x86_64
 
-      - name: Build and repair wheels inside manylinux_2_28 container
+      - name: Build and repair wheel in manylinux container
         run: |
           docker run --rm -v $(pwd):/io quay.io/pypa/manylinux_2_28_x86_64 /bin/bash -c "
-            set -e
+            set -euxo pipefail
 
-            # Select Python version
-            export PYTHON=/opt/python/cp312-cp312/bin/python
-            \$PYTHON -m pip install -U pip wheel setuptools cmake auditwheel numpy
+            PYTHON=/opt/python/cp312-cp312/bin/python
 
-            # Build libfmt from source
+            \$PYTHON -m pip install -U pip setuptools wheel cmake auditwheel numpy
+
+            # Build and install libfmt (statically linked)
             cd /tmp
             git clone --depth=1 https://github.com/fmtlib/fmt.git
             cd fmt
@@ -34,28 +34,27 @@ jobs:
             make install
             cd /io
 
-            # Clean old builds
+            # Clean previous build artifacts
             rm -rf build dist genome_kit/*.so
 
-            echo 'Building wheel...'
+            # Build wheel
             \$PYTHON setup.py bdist_wheel
 
-            echo 'Checking linked libraries...'
+            # Print linked shared objects
+            echo 'Linked shared libraries:'
             find build -name '*.so' -exec ldd {} \;
 
-            echo 'Showing wheel info...'
-            auditwheel show dist/*.whl
-
-            echo 'Repairing wheel...'
+            # Repair wheel to comply with manylinux
             mkdir -p repaired_wheels
             auditwheel repair dist/*.whl --plat manylinux_2_28_x86_64 -w repaired_wheels
           "
 
-      - name: Upload final wheels
+      - name: Upload built wheels
         uses: actions/upload-artifact@v4
         with:
           name: genomekit-wheels-linux
           path: repaired_wheels/*.whl
+
 
       #TODO upload to PyPi
 
