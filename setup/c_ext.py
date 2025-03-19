@@ -24,7 +24,7 @@ debug_info = debug
 debug_objects = False  # Enable printing of Python C++ instances being constructed/destructed
 toolset = "msvc" if platform.system() == "Windows" else "gcc"
 
-gen_dir = os.path.join('build', 'gen')
+gen_dir = os.path.join('../build', 'gen')
 include_dirs = [
     sys.prefix + "/include",
     gen_dir,

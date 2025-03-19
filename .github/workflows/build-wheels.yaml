@@ -37,20 +37,19 @@ jobs:
             # Clean old builds
             rm -rf build dist genome_kit/*.so
 
-            echo '📦 Building wheel...'
+            echo 'Building wheel...'
             \$PYTHON setup.py bdist_wheel
 
-            echo '🔍 Checking linked libraries...'
+            echo 'Checking linked libraries...'
             find build -name '*.so' -exec ldd {} \;
 
-            echo '🧪 Showing wheel info...'
+            echo 'Showing wheel info...'
             auditwheel show dist/*.whl
 
-            echo '🔧 Repairing wheel...'
+            echo 'Repairing wheel...'
             mkdir -p repaired_wheels
             auditwheel repair dist/*.whl --plat manylinux_2_28_x86_64 -w repaired_wheels
           "
-      
 
       - name: Upload final wheels
         uses: actions/upload-artifact@v4
@@ -58,7 +57,7 @@ jobs:
           name: genomekit-wheels-linux
           path: repaired_wheels/*.whl
 
-
+      #TODO upload to PyPi
 
 
 
