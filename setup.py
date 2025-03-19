@@ -81,10 +81,10 @@ if __name__ == "__main__":
             "Documentation": "https://deepgenomics.github.io/GenomeKit"
         },
         cmdclass={
-            'build_ext': NoCWarningsBuildExt,
+            'build_ext': c_ext.NoCWarningsBuildExt,
             'egg_info': egg_info_ex
         },
-        ext_modules=[extension],
+        ext_modules=[c_ext.extension],
         test_suite="tests",
         tests_require=tests_require,
         url=f"https://github.com/deepgenomics/GenomeKit/v{version}",
