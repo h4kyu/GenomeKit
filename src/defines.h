@@ -26,7 +26,7 @@ Copyright (C) 2016-2023 Deep Genomics Inc. All Rights Reserved.
 #define RESTRICT __restrict
 #define LIKELY(exp) exp
 #elif (defined __GNUC__)
-// GCC-specific macros. Used when compiled on Linux or on Windows via MinGW (as invoked by Anaconda setup.py)
+// GCC-specific macros. Used when compiled on Linux or on Windows via MinGW (as invoked by Anaconda mysetup.py)
 #define INLINE inline __attribute__((always_inline))
 #define RESTRICT __restrict__
 #define LIKELY(exp) __builtin_expect(!!(exp), 1)

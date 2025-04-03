@@ -193,7 +193,7 @@ def build_test_2bit_file(name, refg, regions, chrom_aliases):
     try:
         from twobitreader import TwoBitFile
     except ImportError:
-        raise ImportError("To build test data files, follow the dev setup instructions to set up a dedicated environment")
+        raise ImportError("To build test data files, follow the dev mysetup instructions to set up a dedicated environment")
 
 
     # Source 2bit file to excerpt

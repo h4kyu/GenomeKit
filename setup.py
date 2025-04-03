@@ -3,7 +3,7 @@ import os
 
 from setuptools import setup, find_packages
 from setuptools.command.egg_info import egg_info
-from setup import c_ext
+from mysetup import c_ext
 
 COPYRIGHT_FILE = "COPYRIGHT.txt"
 LICENSE_FILE = "LICENSE"

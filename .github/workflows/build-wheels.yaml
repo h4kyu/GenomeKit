@@ -10,8 +10,8 @@ on:
 #    - ".github/workflows/**"
 #    - "conda-recipe/**"
 #    - "genome_kit/**"
-#    - "setup.py"
-#    - "setup/**"
+#    - "mysetup.py"
+#    - "mysetup/**"
 #    - "src/**"
 #    - "tests/**"
 
@@ -97,7 +97,7 @@ jobs:
 #              rm -rf build dist *.egg-info
 #
 #              # Build wheel
-#              \$PYTHON setup.py bdist_wheel
+#              \$PYTHON mysetup.py bdist_wheel
 #
 #              # Copy wheel to shared folder
 #              cp dist/*.whl wheels/

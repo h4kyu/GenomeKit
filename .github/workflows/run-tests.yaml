@@ -10,7 +10,7 @@ on:
     - "conda-recipe/**"
     - "genome_kit/**"
     - "setup.py"
-    - "setup/**"
+    - "../../mysetup/**"
     - "src/**"
     - "tests/**"
 
