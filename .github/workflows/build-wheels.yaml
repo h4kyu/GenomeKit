@@ -37,7 +37,7 @@ jobs:
             cd fmt-11.0.2
             cmake -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DBUILD_SHARED_LIBS=OFF -DCMAKE_INSTALL_PREFIX=/usr/local .
             make -j$(nproc)
-            sudo make install
+            make install
           CIBW_BEFORE_BUILD: pip install setuptools cmake \"numpy>=1.25,<2.0.0.dev0\"
         with:
           package-dir: .
