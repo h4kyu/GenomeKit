@@ -95,7 +95,7 @@ public:
 		pooled,
 	};
 
-	enum gt_t { gt_homozygous_ref, gt_heterozygous, gt_homozygous_alt, gt_unknown };
+	enum gt_t { gt_homozygous_ref, gt_heterozygous_unphased, gt_homozygous_alt, gt_unknown, gt_heterozygous_phased_0_1, gt_heterozygous_phased_1_0 };
 
 	enum struct svtype_t : uint8_t {
 		na,
@@ -135,32 +135,21 @@ public:
 	const field_cols_t& fmt_fields() const noexcept { return _fmt_entries; }
 
 	int num_samples() const noexcept { return _num_samples; };
-	// first name contiguous array of C strings if num_samples() else nullptr
-	const char* sample_names() const noexcept { return _sample_names; }
+	std::vector<std::string_view> sample_names() const;
 
 	class builder {
 	public:
-		enum class action { error, warn, exclude };
+		// keep ordering consistent with string values in py_variant_table.cpp
+		enum class action_t { error, warn, exclude };
 
 		builder(const char* infile, const genome_t& genome, bool validate = true);
 
 		void collect_info(const char* id, std::optional<dtype_t> dtype, const void* default_value = nullptr);
 		void collect_fmt(const char* id, std::optional<dtype_t> dtype, const void* default_value = nullptr);
 
-		void exclude(const interval_t& interval)
-		{
-			GK_CHECK(interval.refg == _chrom_names.refg(), value, "Cannot exclude {} for {}", interval,
-					 _chrom_names.refg_name());
-			_exclude.push_back(interval);
-			}
-		void allow(const interval_t& interval)
-		{
-			GK_CHECK(interval.refg == _chrom_names.refg(), value, "Cannot allow {} for {}", interval,
-					 _chrom_names.refg_name());
-			_allow.push_back(interval);
-		}
+		interval_filter& get_interval_filter() { return _interval_filter; }
 
-		void ancestral(action behaviour) { _ancestral = behaviour; }
+		void ancestral(action_t behaviour) { _ancenstral_handler._action = behaviour; }
 
 		// Process/Parse through file given by infile
 		// Accumulate fields inside private member of builder
@@ -224,12 +213,17 @@ public:
 
 		field_values_t _info_values;
 		field_values_t _fmt_values;
-		vector<interval_t> _exclude;
-		vector<interval_t> _allow;
-		action _ancestral{ action::error };
+		interval_filter _interval_filter;
 		variant_table::builder _variants{ false };
 		vector<string> _sample_names;
-		vector<long long> ancestral_lines;
+
+		struct ancentral_handler {
+			action_t          _action{action_t::error};
+			vector<long long> _lines;
+
+			bool notify(long long line_number);
+			void log() const;
+		} _ancenstral_handler;
 
 		// Holds the order in which FORMAT IDs were specified on a line containing FORMAT data.
 		vector<size_t> _field_ids_order;

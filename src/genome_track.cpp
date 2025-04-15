@@ -3,6 +3,7 @@ Copyright (C) 2016-2023 Deep Genomics Inc. All Rights Reserved.
 */
 #include "genome_track.h"
 #include <algorithm>
+#include <numeric>
 #include <optional>
 #include <utility>
 #include <variant>
@@ -50,7 +51,7 @@ genome_track::dtype_t genome_track::etype_default_dtype[genome_track::num_etype]
 	genome_track::float32,  // f32
 };
 
-const char* genome_track::dtype_as_cstr[genome_track::num_dtype] = {
+const char* genome_track::dtype_as_cstr[as_ordinal(genome_track::num_dtype)] = {
 	"bool",
 	"uint8",
 	"int8",
@@ -58,7 +59,7 @@ const char* genome_track::dtype_as_cstr[genome_track::num_dtype] = {
 	"float32",
 };
 
-int genome_track::dtype_size[genome_track::num_dtype] = {
+int genome_track::dtype_size[as_ordinal(genome_track::num_dtype)] = {
 	sizeof(bool),    // bool_
 	sizeof(uint8_t), // uint8
 	sizeof(int8_t),  // int8
@@ -68,7 +69,7 @@ int genome_track::dtype_size[genome_track::num_dtype] = {
 
 genome_track::dtype_t genome_track::as_dtype(const char* s)
 {
-	for (int i = 0; i < genome_track::num_dtype; ++i)
+	for (int i = 0; i < as_ordinal(genome_track::num_dtype); ++i)
 		if (!strcmp(s, dtype_as_cstr[i]))
 			return (genome_track::dtype_t)i;
 	GK_THROW(value, "Unrecognized dtype '{}'", s);
@@ -76,7 +77,7 @@ genome_track::dtype_t genome_track::as_dtype(const char* s)
 
 genome_track::etype_t genome_track::as_etype(const char* s)
 {
-	for (int i = 0; i < genome_track::num_etype; ++i)
+	for (int i = 0; i < as_ordinal(genome_track::num_etype); ++i)
 		if (!strcmp(s, etype_as_cstr[i]))
 			return (genome_track::etype_t)i;
 	GK_THROW(value, "Unrecognized etype '{}'", s);
@@ -109,20 +110,26 @@ void genome_track::open_on_demand() const
 	// TODO: release lock here (implicitly, when falls out of scope)
 }
 
-void genome_track::operator()(const interval_t& c, bool*    dst) const { (*this)(c, dst, bool_); }
-void genome_track::operator()(const interval_t& c, uint8_t* dst) const { (*this)(c, dst, uint8); }
-void genome_track::operator()(const interval_t& c, int8_t*  dst) const { (*this)(c, dst, int8); }
-void genome_track::operator()(const interval_t& c, half_t*  dst) const { (*this)(c, dst, float16); }
-void genome_track::operator()(const interval_t& c, float*   dst) const { (*this)(c, dst, float32); }
-void genome_track::operator()(const interval_t& c, void*    dst, dtype_t dtype) const
+void genome_track::operator()(const interval_t& c, bool*    dst, int stride) const { (*this)(c, dst, bool_,   stride); }
+void genome_track::operator()(const interval_t& c, uint8_t* dst, int stride) const { (*this)(c, dst, uint8,   stride); }
+void genome_track::operator()(const interval_t& c, int8_t*  dst, int stride) const { (*this)(c, dst, int8,    stride); }
+void genome_track::operator()(const interval_t& c, half_t*  dst, int stride) const { (*this)(c, dst, float16, stride); }
+void genome_track::operator()(const interval_t& c, float*   dst, int stride) const { (*this)(c, dst, float32, stride); }
+void genome_track::operator()(const interval_t& c, void*    dst, dtype_t dtype, int stride) const
 {
 	ensure_open();
 	GK_CHECK(refg() == c.refg, value, "Reference genome mismatch");
 
+	if (stride == 0)
+		stride = dim();
+	GK_CHECK(stride > 0, value, "Negative strides not supported: stride={}", stride);
+	GK_CHECK(stride >= dim(), value, "Stride is too small: stride={}, dim={}", stride, dim());
+	const int layout = as_ordinal(stride == dim() ? encoding::layout_t::contiguous : encoding::layout_t::noncontiguous);
+
 	// Get callbacks that are specialized to decode and default fill for this dtype and strand direction.
-	encoding::decode_fn decode = _encoding.decoders[dtype][as_ordinal(c.strand)];
-	encoding::dfill_fn  dfill  = _encoding.dfillers[dtype][as_ordinal(c.strand)];
-	GK_CHECK(decode, type, "Cannot decode as {} from encoded type {}", dtype_as_cstr[dtype], etype_as_cstr[_encoding.etype]);
+	encoding::decode_fn decode = _encoding.decoders[as_ordinal(dtype)][layout][as_ordinal(c.strand)];
+	encoding::dfill_fn  dfill  = _encoding.dfillers[as_ordinal(dtype)][layout][as_ordinal(c.strand)];
+	GK_CHECK(decode, type, "Cannot decode as {} from encoded type {}", dtype_as_cstr[as_ordinal(dtype)], etype_as_cstr[_encoding.etype]);
 	GK_DBASSERT(dfill);
 
 	static constexpr track_index_t null_index{};
@@ -353,7 +360,7 @@ void genome_track::operator()(const interval_t& c, void*    dst, dtype_t dtype) 
 			s = 0;        // No overlap, so the decoding step will decode from the start of the data block.
 			if (a >= ce)  // If this data block is beyond the end of the query interval, truncate at end.
 				break;    // (Let the final dfill handle this case)
-			d += dfill(dst, fill, a-b, dim, d); // Fill with default
+			d += dfill(dst, fill, a-b, dim, d, stride); // Fill with default
 		}
 
 		// Get pointer to the encoded data block (src)
@@ -374,16 +381,16 @@ void genome_track::operator()(const interval_t& c, void*    dst, dtype_t dtype) 
 		// Fill [a,b) with src decoded data.
 		b = ends[i];
 		if (b >= ce) {
-			decode(dst, src, dict, ce-a, dim, d, s);
+			decode(dst, src, dict, ce-a, dim, d, s, stride);
 			goto done; // Skip the final dfill
 		} else {
-			d += decode(dst, src, dict, b-a, dim, d, s);
+			d += decode(dst, src, dict, b-a, dim, d, s, stride);
 		}
 	}
 
 	// Fill the last [b,a) with default value where a == ce.
 	if (ce != b)
-		dfill(dst, fill, ce-b, dim, d);
+		dfill(dst, fill, ce-b, dim, d, stride);
 
 done:
 
@@ -526,18 +533,41 @@ done:
 			if (phase == _res)
 				phase = 0;
 		}
-		_encoding.expanders[dtype](dst, c.size(), dim, ce-cs, _res, phase);
+		_encoding.expanders[as_ordinal(dtype)][layout](dst, c.size(), dim, ce-cs, _res, phase, stride);
 	}
 }
 
 genome_track::etype_t genome_track::etype() const { ensure_open(); return _fmap.as_ptr<header_t>(0)->etype; }
 genome_track::dtype_t genome_track::dtype() const { return etype_default_dtype[etype()]; }
-bool genome_track::supports_dtype(dtype_t dtype) const { ensure_open(); return _encoding.decoders[dtype][as_ordinal(neg_strand)] != nullptr; }
+bool genome_track::supports_dtype(dtype_t dtype) const { ensure_open(); return _encoding.supports_dtype(dtype); }
 bool genome_track::empty() const noexcept
 {
 	ensure_open();
 	return std::empty(_tracks);
 }
+
+std::vector<interval_t> genome_track::intervals() const
+{
+	ensure_open();
+
+	std::vector<interval_t> ret(std::accumulate(std::begin(_tracks), std::end(_tracks), 0,
+												[](auto num, auto kv) { return num + kv.second.index->num_blocks; }));
+
+	size_t i_itv = 0;
+	for (auto [k, v] : _tracks) {
+		const auto num_blocks = v.index->num_blocks;
+		const auto jumps      = rcast<const int32_t*>(v.index + 1);
+		const auto ends       = rcast<const pos_t*>(jumps + v.index->num_jumps);
+		const auto starts     = rcast<const pos_t*>(ends + num_blocks);
+
+		for (std::decay_t<decltype(num_blocks)> i_block{}; i_block < num_blocks; ++i_block) {
+			ret[i_itv] = interval_t::from_dna0(k.chrom, starts[i_block] * _res, ends[i_block] * _res, k.other, _refg);
+			++i_itv;
+		}
+	}
+	return ret;
+}
+
 ///////////////////////////////////////////////////////////////
 
 template <typename D, typename S>

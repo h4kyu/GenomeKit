@@ -2,7 +2,6 @@
 Copyright (C) 2016-2023 Deep Genomics Inc. All Rights Reserved.
 */
 #include "genome_dna.h"
-#include "format.h"
 #include "strutil.h"
 #include "util.h"
 #include <algorithm>
@@ -125,7 +124,7 @@ void genome_dna::operator()(const interval_t& interval, char* _dst, const bool a
 	const uint32_t a = max(interval.start(), 0);
 	const uint32_t b = min((uint32_t)interval.end(), rec.num_dna_bases);
 
-	GK_CHECK(allow_outside_chromosome || interval.end() <= rec.num_dna_bases, index, "genome_dna::get({}) index larger than chromosome size {}.",
+	GK_CHECK(allow_outside_chromosome || interval.end() < 0 || ((uint32_t)interval.end()) <= rec.num_dna_bases, index, "genome_dna::get({}) index larger than chromosome size {}.",
 			 interval, rec.num_dna_bases);
 	if (allow_outside_chromosome) {
 		GK_CHECK(interval.end() > 0 && a < rec.num_dna_bases - 1, index, "genome_dna::get({}) entire range outside chromosome.", interval);
@@ -205,7 +204,7 @@ void genome_dna::operator()(const interval_t& interval, char* _dst, const bool a
 		}
 	}
 
-	if (allow_outside_chromosome && interval.end() > rec.num_dna_bases) {
+	if (allow_outside_chromosome && interval.end() > 0 && ((uint32_t)interval.end()) > rec.num_dna_bases) {
 		memset(dst + rec.num_dna_bases - a + offset, 'N', interval.end() - rec.num_dna_bases);
 	}
 
@@ -288,7 +287,7 @@ void genome_dna::seqrec_t::ensure_open(const mmap_file& fmap) const
 
 string default_dna_sourcefile(string_view refg_name, string_view data_dir)
 {
-	return prepend_dir(data_dir, fmt::format("{}.2bit", refg_name));
+	return prepend_dir(data_dir, std::format("{}.2bit", refg_name));
 }
 
 END_NAMESPACE_GK

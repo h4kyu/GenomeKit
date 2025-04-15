@@ -1,5 +1,7 @@
 # GenomeKit
 
+[![run-unit-tests](https://github.com/deepgenomics/GenomeKit/actions/workflows/run-tests.yaml/badge.svg)](https://github.com/deepgenomics/GenomeKit/actions/workflows/run-tests.yaml)
+
 ## What is GenomeKit?
 
 GenomeKit is Deep Genomics' Python library for fast and easy access to
@@ -25,7 +27,8 @@ secondary structure, conservation, and more.
 ## Resource Available
 
 - Reference DNA: hg19, hg19.p13.plusMT, hg38, hg38.p12, hg38.p13, hg38.p14, mm10.p6, mm39, rn6, macFas5, susScr11.
-- Annotations: GENCODE, RefSeq, Ensembl, APPRIS.
+  *  To add more, see [Genomes](docs/genomes.rst)
+- Annotations: GENCODE, RefSeq, Ensembl, APPRIS, MANE.
 - Tracks: conservation, RNA structure, methylation, nucleosome positions, ...
 
 ## Installation
@@ -41,4 +44,26 @@ You can install GenomeKit with
 
 ## Full Documentation (including developer instructions)
 
-TODO: add updated readthedocs link
+https://deepgenomics.github.io/GenomeKit
+
+Documentation for previous versions is also available, e.g
+https://deepgenomics.github.io/GenomeKit/v5.0.0
+
+## Acknowledgements
+
+We would like to express our gratitude to the following individuals who have contributed to the development of GenomeKit:
+
+- Steve Chan ([@s22chan](https://github.com/s22chan))
+- Andrew Delong ([@andrewdelong](https://github.com/andrewdelong))
+- Hannes Bretschneider ([@hannes-brt](https://github.com/hannes-brt))
+- Khalid Zuberi ([@kzuberi](https://github.com/kzuberi))
+- Albert Cui ([@albscui](https://github.com/albscui))
+- Aaron Uhr ([@jwuhr123](https://github.com/jwuhr123))
+- Peiqi (Mark) Wang ([@tt6746690](https://github.com/tt6746690))
+- Tasso Karkanis ([@TassoKarkanis](https://github.com/TassoKarkanis))
+- Troy Simpson ([@mrtron](https://github.com/mrtron))
+
+Special thanks to the original author, Andrew Delong, for laying the foundation of this project,
+and to Steve Chan for his continued support and contributions.
+
+We appreciate the efforts and contributions of all past contributors, whose work has been invaluable to the growth and improvement of GenomeKit.

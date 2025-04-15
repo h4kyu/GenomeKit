@@ -26,8 +26,8 @@ bool contains_if(const T& container, P pred)
 
 BEGIN_NAMESPACE_GK
 
-const unsigned short c_vcfbin_sig = 0xc0ed;
-const unsigned short c_vcfbin_ver = 0x0005;
+constexpr uint16_t c_vcfbin_sig = 0xc0ed;
+constexpr uint16_t c_vcfbin_ver = 0x0005;
 // versions:
 //   0001: initial format
 //   0002: remove extra variants_size field
@@ -50,10 +50,12 @@ enum vcf_col_t {
 
 // For diploids, assume GT of the form 00, 01, 10, 11 only
 // 		Convert gts strings to a 2-bit encoding
-// 		00 -> 0     (gt_homozygous_ref)
-// 		01 -> 1     (gt_heterozygous)
-// 		11 -> 2     (gt_homozygous_alt)
-// 		?? -> 3     (gt_unknown)
+// 		0/0, 0|0 -> 0     (gt_homozygous_ref)
+// 		0/1, 1/0 -> 1     (gt_heterozygous)
+// 		1/1, 1|1 -> 2     (gt_homozygous_alt)
+// 		??       -> 3     (gt_unknown)
+// 		0|1      -> 4     (gt_heterozygous_phased_0_1)
+// 		1|0      -> 5     (gt_heterozygous_phased_1_0)
 static vcf_table::gt_t as_gt_t(string_view gts, bool strict_gt = false)
 {
 	static const int diploid_gts_length = 3;
@@ -69,10 +71,20 @@ static vcf_table::gt_t as_gt_t(string_view gts, bool strict_gt = false)
 				 "GT component must an allelic index or '.': {}.", gts);
 		GK_CHECK(delim == '/' || delim == '|', value, "Expected `/` or `|` as separator for GT field, Found {}", delim);
 
-		if (strict_gt && (first == '.' || second == '.'))
+		const auto phased = delim == '|';
+
+		if ((strict_gt || phased) && (first == '.' || second == '.'))
+			// phased values ignore user-specified GT default values
 			return vcf_table::gt_unknown;
-		if (first != second)
-			return vcf_table::gt_heterozygous;
+		if (first != second) {
+			if (!phased) {
+				return vcf_table::gt_heterozygous_unphased;
+			}
+			if (first == '0') {
+				return vcf_table::gt_heterozygous_phased_0_1;
+			}
+			return vcf_table::gt_heterozygous_phased_1_0;
+		}
 		if (first == '0')
 			return vcf_table::gt_homozygous_ref;
 		if (first == '.')
@@ -492,6 +504,9 @@ vcf_table::builder::builder(const char* infile, const genome_t& genome, bool val
 	, _dna{&genome.dna()}
 	, _chrom_names{genome.chrom_names()}
 	, _validate(validate)
+	, _interval_filter{[&](interval_t i) {
+		GK_CHECK(i.refg == _chrom_names.refg(), value, "Cannot filter {} for {}", i, _chrom_names.refg_name());
+	}}
 {
 }
 
@@ -535,11 +550,11 @@ void vcf_table::builder::collect_fmt(const char* id, optional<dtype_t> dtype, co
 	if (strcmp(id, "GT") == 0) {
 		auto val = (int)gt_unknown;
 		if (default_value) {
-			if (*dtype == int32) {
+			if (*dtype == int8) {
 				val = *(const int*)default_value;
 			}
-			GK_CHECK(*dtype == int32 && (val == (int)gt_unknown || val == (int)gt_heterozygous), value,
-					 "FORMAT ID GT must be one of GT_UNKNOWN or GT_HETEROZYGOUS.");
+			GK_CHECK(*dtype == int8 && (val == (int)gt_unknown || val == (int)gt_heterozygous_unphased), value,
+					 "FORMAT ID GT default value must be one of GT_UNKNOWN or GT_HETEROZYGOUS_UNPHASED.");
 		}
 		optional<int> depth;
 		if (!contains_if(_fmt_values, [](const auto& x) { return x.id == "PS"; })) {
@@ -739,16 +754,9 @@ bool vcf_table::builder::parse_variant(const vector<string_view>& cols)
 
 	if (alts == ".") {
 		// missing alt means no alternative allele (no variant)
-		switch (_ancestral) {
-		case action::error:
-			GK_THROW(value, "Ancestral allele found: remove or build with warn/exclude.");
-			break;
-		case action::warn:
-			ancestral_lines.push_back(_infile.line_num());
-			alts = ref;
-			break;
-		case action::exclude: return false;
-		}
+		if (!_ancenstral_handler.notify(_infile.line_num()))
+			return false;
+		alts = ref;
 	}
 
 	pos_t start = as_pos(cols[vcf_col_pos]) - 1;
@@ -817,9 +825,7 @@ bool vcf_table::builder::parse_variant(const vector<string_view>& cols)
 	v.strand = pos_strand;
 	v.refg   = _chrom_names.refg();
 
-	if (is_interval_in_list(v, _exclude))
-		return false;
-	if (!_allow.empty() && !is_interval_in_list(v, _allow))
+	if (!get_interval_filter().filter(v))
 		return false;
 
 	if (ref.size() < 2 && alts.size() < 2) {
@@ -977,11 +983,7 @@ void vcf_table::builder::build(const char* outfile)
 		GK_RETHROW("In VCF file: {}:{}", _infile_name, _infile.line_num());
 	}
 
-	if (!std::empty(ancestral_lines)) {
-		print("Ancestral allele found on lines: ");
-		for (auto line : ancestral_lines) { print("{}, ", line); }
-		print("\n");
-	}
+	_ancenstral_handler.log();
 
 	// Sort the INFO/FORMAT columns by ID string.
 	auto less_id = [](const auto& lhs, const auto& rhs) { return lhs.id < rhs.id; };
@@ -1002,17 +1004,17 @@ void vcf_table::builder::build(const char* outfile)
 	// support easier migration of old vcfbin files
 	out.write_until_align(4);
 
-	out.write((int)_info_values.size());
+	out.write((int32_t)_info_values.size());
 	for (auto& info_value : _info_values) info_value.dump(out);
 
 	// Write FORMAT data as separate columns
-	out.write((int)_sample_names.size());
-	out.write((int)_fmt_values.size());
+	out.write((int32_t)_sample_names.size());
+	out.write((int32_t)_fmt_values.size());
 	for (auto& fmt_value : _fmt_values) fmt_value.dump(out);
 
 	if (!_sample_names.empty()) {
-		auto total_len = int_cast<int>(accumulate(cbegin(_sample_names), cend(_sample_names), (size_t)0,
-												  [](auto x, const auto& y) { return x + y.size() + 1; }));
+		auto total_len = int_cast<int32_t>(accumulate(cbegin(_sample_names), cend(_sample_names), (size_t)0,
+													  [](auto x, const auto& y) { return x + y.size() + 1; }));
 		out.write(total_len);
 		for (const auto& name : _sample_names) out.write(name.c_str(), name.size() + 1);
 	}
@@ -1020,11 +1022,32 @@ void vcf_table::builder::build(const char* outfile)
 	out.close();
 }
 
-vcf_table::vcf_table(mmap_file&& mapped)
-	: _fmap(move(mapped))
+bool vcf_table::builder::ancentral_handler::notify(long long line_number)
 {
-	auto sig = _fmap.read<unsigned short>();
-	auto ver = _fmap.read<unsigned short>();
+	if (_action == action_t::error)
+		GK_THROW(value, "Ancestral allele found: remove or build with warn/exclude.");
+	if (_action == action_t::exclude)
+		return false;
+
+	GK_ASSERT(_action == action_t::warn);
+	_lines.push_back(line_number);
+	return true;
+}
+
+void vcf_table::builder::ancentral_handler::log() const {
+	if (std::empty(_lines))
+		return;
+
+	print("Ancestral allele found on lines: ");
+	for (auto line : _lines) { print("{}, ", line); }
+	print("\n");
+}
+
+vcf_table::vcf_table(mmap_file&& mapped)
+	: _fmap(std::move(mapped))
+{
+	auto sig = _fmap.read<uint16_t>();
+	auto ver = _fmap.read<uint16_t>();
 	GK_CHECK(sig == c_vcfbin_sig, file,
 			 "Expected vcfbin file signature {:x} but found {:x}; not a valid vcfbin file?", c_vcfbin_sig,
 			 sig);
@@ -1040,15 +1063,29 @@ vcf_table::vcf_table(mmap_file&& mapped)
 	_info_entries.load(_fmap);
 
 	// Read FORMAT data, sorted by ID string.
-	_num_samples = _fmap.read<int>();
+	_num_samples = _fmap.read<int32_t>();
 	_fmt_entries.load(_fmap);
 
 	if (_num_samples > 0) {
-		_fmap.move_seek(sizeof(int)); // num bytes following
+		_fmap.move_seek(sizeof(int32_t));  // num bytes following
 		_sample_names = _fmap.curr_ptr<char>();
 	}
 }
 
 int vcf_table::file_version() noexcept { return c_vcfbin_ver; }
+
+std::vector<std::string_view> vcf_table::sample_names() const
+{
+	std::vector<std::string_view> ret;
+	auto                          num_names = num_samples();
+	auto                          name = _sample_names;
+	ret.reserve(num_names);
+	for (int i = 0; i < num_names; ++i) {
+		auto name_len = std::strlen(name);
+		ret.push_back({name, name_len});
+		name += name_len + 1;
+	}
+	return ret;
+}
 
 END_NAMESPACE_GK

@@ -1,4 +1,5 @@
 # Copyright (C) 2016-2023 Deep Genomics Inc. All Rights Reserved.
+import os
 
 from setuptools import setup, find_packages
 from setuptools.command.egg_info import egg_info
@@ -11,7 +12,7 @@ tests_require = [
     "twobitreader>=3.1",
 ]
 
-version = "4.0.3"
+version = "6.5.2"
 
 # See https://stackoverflow.com/questions/9977889/how-to-include-license-file-in-setup-py-script/66443941#66443941
 class egg_info_ex(egg_info):
@@ -28,23 +29,38 @@ class egg_info_ex(egg_info):
         egg_info.run(self)
 
 if __name__ == "__main__":
+    install_requires = []
+    if os.environ.get("GK_BUILD_WHEELS", None) is not None:
+        install_requires = [
+            "appdirs>=1.4.0",
+            "numpy<2.0dev0",
+            "google-cloud-storage>=2.10.0",
+            "boto3",
+            "tqdm",
+            "setuptools",
+            "importlib-metadata",
+            "typing-extensions",
+        ]
     setup(
         author="Deep Genomics",
         author_email="info@deepgenomics.com",
-        python_requires=">=3.8, <4",
+        python_requires=">=3.9, <4",
         classifiers=[
             "Development Status :: 5 - Production/Stable",
             "License :: OSI Approved :: Apache Software License",
-            "Programming Language :: Python :: 3.8",
+            "Programming Language :: Python :: 3.9",
+            "Programming Language :: Python :: 3.10",
+            "Programming Language :: Python :: 3.11",
+            "Programming Language :: Python :: 3.12",
         ],
         description="GenomeKit is a Python library for fast and easy access to genomic resources such as sequence, data tracks, and annotations.",
+        install_requires=install_requires,
         license="Apache License 2.0",
         license_files=(COPYRIGHT_FILE, LICENSE_FILE,),
         name="genomekit",
         packages=find_packages(include=["genome_kit"]),
         project_urls={
-            # TODO check documentation link when docs are published on readthedocs
-            "Documentation": f"https://genomekit.readthedocs.io/en/{version}"
+            "Documentation": "https://deepgenomics.github.io/GenomeKit"
         },
         cmdclass={
             'build_ext': c_ext.NoCWarningsBuildExt,
@@ -53,7 +69,7 @@ if __name__ == "__main__":
         ext_modules=[c_ext.extension],
         test_suite="tests",
         tests_require=tests_require,
-        url="https://github.com/deepgenomics/GenomeKit",
+        url=f"https://github.com/deepgenomics/GenomeKit/v{version}",
         version=version,
         zip_safe=False,
     )

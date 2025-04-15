@@ -13,8 +13,6 @@ import tempfile
 from contextlib import suppress
 from pathlib import Path
 
-from twobitreader import TwoBitFile
-
 from . import (
     Genome,
     GenomeAnnotation,
@@ -24,9 +22,12 @@ from . import (
 )
 
 # Which gencode annotation to use for which test genome
-GENCODE_TEST_ANNOTATIONS = {
+GENCODE_OR_NCBI_TEST_ANNOTATIONS = {
+    "hg19": "gencode.v47lift37",
     "hg19.p13.plusMT": "gencode.v29lift37",  # v29lift37 for hg19
     "hg38.p12": "gencode.v29",  # v29 for hg38
+    "hg38.p13": "gencode.v41",
+    "hg38.p14": "ncbi_refseq.hg38.p14_RS_2024_08",
 }
 
 UCSC_REFSEQ_TEST_ANNOTATIONS = {
@@ -100,6 +101,19 @@ class _GencodeBuilder(object):
         return GenomeAnnotation.build_gencode(srcpath, dstpath, Genome(self.refg))
 
 
+class _NCBIBuilder(object):
+    def __init__(self, refg, gff3_url):
+        self.refg = refg
+        self.srcurl = gff3_url
+
+    def fetch(self):
+        # Simply download the file from original public URL. Only re-download if newer.
+        return gk_data.wget(self.srcurl, timestamping=True, progress=True)
+
+    def build(self, srcpath, dstpath):
+        return GenomeAnnotation.build_ncbi_refseq(srcpath, dstpath, Genome(self.refg))
+
+
 class _UCSCRefSeqBuilder(object):
     def __init__(self, refg, version_str):
         self.refg = refg
@@ -130,10 +144,17 @@ class _UCSCRefSeqBuilder(object):
 _ANNOTATION_BUILDERS = {
     "gencode.v29":
         _GencodeBuilder("hg38.p12", "release_29/gencode.v29.annotation.gff3.gz"),
+    "gencode.v41":
+        _GencodeBuilder("hg38.p13", "release_41/gencode.v41.annotation.gff3.gz"),
     "gencode.v29lift37":
         _GencodeBuilder("hg19.p13.plusMT", "release_29/GRCh37_mapping/gencode.v29lift37.annotation.gff3.gz"),
+    "gencode.v47lift37":
+        _GencodeBuilder("hg19", "release_47/GRCh37_mapping/gencode.v47lift37.annotation.gff3.gz"),
     "ucsc_refseq.2017-06-25":
         _UCSCRefSeqBuilder("hg19", "hg19.ucsc_refseq.2017-06-25"),
+    "ncbi_refseq.hg38.p14_RS_2024_08":
+        _NCBIBuilder("hg38.p14", "https://ftp.ncbi.nlm.nih.gov/refseq/H_sapiens/annotation/annotation_releases/GCF_000001405.40-RS_2024_08/GCF_000001405.40_GRCh38.p14_genomic.gff.gz"),
+
 }
 
 
@@ -151,16 +172,18 @@ _ANNOTATION_BUILDERS = {
 #         SULT1A3 (mapped to multiple regions in chr16 for UCSC)
 #   and they all fall within a 10,500nt window.
 #
-# NOTE: when changing, python -m genome_kit --build-2bit --build-anno --build-appris
+# NOTE: when changing, python -m genome_kit --build-2bit --build-anno --build-appris --build-mane
 #       must be run
 TEST_GENOME_REGIONS = (
-    ('mini1', 'hg19', [('chr1', 84971983, 85022178), ('chr2', 74682100, 74692599), ('chr16', 29471206, 30215650)]),
-    ('mini1', 'hg19.p13.plusMT', [('chr1', 84971983, 85022178), ('chr2', 74682100, 74692599), ('chr16', 29471206, 30215650)]),
-    ('mini1', 'hg38.p12', [('chr2', 74454973, 74465472)]),
+    ('mini1', 'hg19', [('chr1', 134900, 139381), ('chr1', 84971983, 85022178), ('chr2', 74682100, 74692599), ('chr16', 29471206, 30215650)], {}),
+    ('mini1', 'hg19.p13.plusMT', [('chr1', 84971983, 85022178), ('chr2', 74682100, 74692599), ('chr16', 29471206, 30215650)], {}),
+    ('mini1', 'hg38.p12', [('chr2', 74454973, 74465472)], {}),
+    ('mini1', 'hg38.p13', [('chr2', 74454973, 74465472)], {}),
+    ('mini1', 'hg38.p14', [('chr2', 74455022, 74465382)], {"chr2": "NC_000002.12"}), # coordinates adjusted for ncbi_refseq.hg38.p14_RS_2024_08
 )
 
 
-def build_test_2bit_file(name, refg, regions):
+def build_test_2bit_file(name, refg, regions, chrom_aliases):
     """Extracts chrom:start-end (in 0-based coordinates, inclusive)
     from a 2bit file, creating a new 2bit file with only a single
     chromosome (chrom) made entirely of the extracted DNA
@@ -170,12 +193,19 @@ def build_test_2bit_file(name, refg, regions):
     then the new 2bit file will contain a single chromosome named
     'chr5' containing 1000nt of sequence.
     """
+    try:
+        from twobitreader import TwoBitFile
+    except ImportError:
+        raise ImportError("To build test data files, follow the dev setup instructions to set up a dedicated environment")
+
 
     # Source 2bit file to excerpt
     infile = {  # not testing patch contigs yet, use standard assembly for convenience
         "hg19": _check_file("hg19.2bit"),
         "hg19.p13.plusMT": _check_file("hg19.2bit"),
         "hg38.p12": _check_file("hg38.2bit"),
+        "hg38.p13": _check_file("hg38.2bit"), # for testing MANE 1.0 with gencode.v41
+        "hg38.p14": _check_file("hg38.2bit"), # for testing MANE 1.4 with ncbi_refseq.hg38.p14_RS_2024_08
     }[refg]
 
     # Destination 2bit file (small)
@@ -188,7 +218,7 @@ def build_test_2bit_file(name, refg, regions):
     for chrom, start, end in regions:
         seqs[chrom] = tb[chrom][start:end + 1]
     _twobitutils.write2bit(outfile, seqs)
-    Path(outfile).with_suffix(".chrom.sizes").write_text("\n".join(f"{chrom} {end - start + 1}" for chrom, start, end in regions))
+    Path(outfile).with_suffix(".chrom.sizes").write_text("\n".join(f"{chrom_aliases.get(chrom, chrom)} {end - start + 1}" for chrom, start, end in regions))
     print("Wrote", outfile)
 
 
@@ -207,8 +237,8 @@ def build_test_2bit_files():
     """Builds the test 2bit files."""
 
     # Extract test genomic regions.
-    for name, refg, regions in TEST_GENOME_REGIONS:
-        build_test_2bit_file(name, refg, regions)
+    for name, refg, regions, chrom_aliases in TEST_GENOME_REGIONS:
+        build_test_2bit_file(name, refg, regions, chrom_aliases)
 
     #                                                            0         1         2         3         4
     # Build hand-specified 2bit files, used by some tests.       01234567890123456789012345678901234567890123
@@ -219,7 +249,7 @@ def build_test_2bit_files():
     build_test_2bit_file_from_seq('test_genome_alt', {'chr1': 'AAAA', 'chr2': 'CCCC'})
 
 
-def build_test_annotation_gff3(regions, infile, outfile):
+def build_test_annotation_gff3(regions, chrom_aliases, infile, outfile):
     """Extracts GFF3 elements contained entirely within chrom:start-end
     (in 0-based coordinates, inclusive) from a GFF3 file, creating a
     new GFF3 file.
@@ -262,7 +292,7 @@ def build_test_annotation_gff3(regions, infile, outfile):
                     for chrom, start, end in (
                         (chrom, start, end)
                         for chrom, start, end in regions
-                        if line.startswith(f"{chrom}\t")
+                        if line.startswith(f"{chrom_aliases.get(chrom, chrom)}\t")
                     ):
                         # Element on the right chromosome, at least
                         lchrom, lsource, ltype, lstart, lend, lextra = line.split("\t", 5)
@@ -272,14 +302,15 @@ def build_test_annotation_gff3(regions, infile, outfile):
                             # Only add elements that either have no parent or whose parent
                             # has already been added because it too falls completely within
                             # the filter interval
-                            if ltype == "gene" or pa_re.findall(lextra)[0] in parent_ids:
+                            parent_matches = pa_re.findall(lextra)
+                            if ltype == "gene" or (len(parent_matches) > 0 and parent_matches[0] in parent_ids):
                                 out.write("\t".join(
                                     [lchrom, lsource, ltype,
                                      str(lstart - start + 1),
                                      str(lend - start), lextra]))
                                 # All elements below gene/transcript can only have gene/transcript parents IDs
                                 # so those are the only ones we add to the list.
-                                if ltype in ("gene", "transcript"):
+                                if ltype in ("gene", "transcript", "lnc_RNA", "mRNA"):
                                     parent_ids.append(id_re.findall(lextra)[0])
 
 
@@ -332,14 +363,14 @@ def build_test_ucsc_refseq_database(regions, srcdir, dstdir):
                     out.write(line)
 
 
-def build_test_gencode_file(name, refg, regions):
+def build_test_gencode_or_ncbi_file(name, refg, regions, chrom_aliases):
     """Builds a test GENCODE annotation data file.
     """
-    if refg not in GENCODE_TEST_ANNOTATIONS:
+    if refg not in GENCODE_OR_NCBI_TEST_ANNOTATIONS:
         return
 
     # Destination DGANNO file
-    dstfile = GENCODE_TEST_ANNOTATIONS[refg]
+    dstfile = GENCODE_OR_NCBI_TEST_ANNOTATIONS[refg]
     dstpath = _ensure_path(os.path.join(_tests_data_dir(), name, f"{dstfile}.mini"))
 
     # Destination GFF3 file (to be filtered)
@@ -352,7 +383,7 @@ def build_test_gencode_file(name, refg, regions):
     full_srcpath = builder.fetch()
 
     # Build the filtered GFF3
-    build_test_annotation_gff3(regions, full_srcpath, mini_srcpath)
+    build_test_annotation_gff3(regions, chrom_aliases, full_srcpath, mini_srcpath)
     print("Wrote", mini_srcpath)
 
     # Build the binary annotation file
@@ -392,6 +423,6 @@ def build_test_annotation_files():
     """Builds all test annotation data files.
     """
 
-    for name, refg, regions in TEST_GENOME_REGIONS:
-        build_test_gencode_file(name, refg, regions)
+    for name, refg, regions, chrom_aliases in TEST_GENOME_REGIONS:
+        build_test_gencode_or_ncbi_file(name, refg, regions, chrom_aliases)
         build_test_ucsc_refseq_file(name, refg, regions)

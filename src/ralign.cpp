@@ -3,7 +3,6 @@ Copyright (C) 2016-2023 Deep Genomics Inc. All Rights Reserved.
 */
 #include "ralign.h"
 
-#include "format.h"
 #include "genome.h"
 #include "genome_dna.h"
 #include "strutil.h"
@@ -300,7 +299,7 @@ void read_alignments::builder::process_line(chrom_t chrom, pos_t pos, strand_t s
 
 		// Define the interval and ensure that it satisfies exclude/allow
 		auto interval = interval_t::from_dna0(chrom, start, end, strand, refg());
-		if (!is_allowed_interval(interval))
+		if (!get_interval_filter().filter(interval))
 			continue;
 
 		// Find the junction corresponding to this exact interval

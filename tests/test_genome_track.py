@@ -1,23 +1,19 @@
 # Copyright (C) 2016-2023 Deep Genomics Inc. All Rights Reserved.
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
+from __future__ import annotations
 
-import os
 import gc
-from tempfile import mkstemp
+import os
+import unittest
 from collections import Counter
 from itertools import product
+from pathlib import Path
+from tempfile import mkstemp
 
 import numpy as np
-import unittest
 
-from genome_kit import GenomeTrack
-from genome_kit import GenomeTrackBuilder
-from genome_kit import Interval
+from genome_kit import GenomeTrack, GenomeTrackBuilder, Interval
 
-from . import MiniGenome
-from . import dumptext
+from . import MiniGenome, dumptext
 
 
 # Generate a data block of numbers for a given interval
@@ -34,7 +30,7 @@ def make_data(interval, dim, pattern, dtype):
 
 
 def as_list(array):
-    return [float(value) for value in array]
+    return array.reshape(array.shape[0]).tolist()
 
 
 def make_builder(outfile, etype="f16", strandedness="single_stranded", reference_genome=MiniGenome("hg19"), **kwargs):
@@ -261,7 +257,7 @@ class TestBuildTrack(unittest.TestCase):
         self.assertEqual(track(interval).dtype, np.float16)
 
         # Wrong interval arg types
-        with self.assertRaises(ValueError):
+        with self.assertRaises(TypeError):
             track()
         with self.assertRaises(TypeError):
             track(None)
@@ -284,6 +280,100 @@ class TestBuildTrack(unittest.TestCase):
         # Empty keywords
         empty_dict = {}
         self.assertEqual(track(interval, **empty_dict).dtype, np.float16)
+
+    def test_intervals(self):
+        # Build a valid .gtrack file for some tests
+        builder = self.make_builder(strandedness="strand_aware")
+        intervals = [Interval('chr1', '+', 10, 30, builder.refg)]
+        intervals.append(intervals[0].as_opposite_strand().shift(1))
+        builder.set_data(intervals[0], np.zeros((20, 1), np.float16))
+        builder.set_data(intervals[1], np.ones((20, 1), np.float16))
+        builder.finalize()
+
+        with GenomeTrack(self.tmpfile) as track:
+            self.assertEqual(set(intervals), set(track.intervals))
+
+        builder = self.make_builder(strandedness="strand_aware", resolution=5)
+        intervals = [Interval('chr1', '+', 10, 30, builder.refg)]
+        intervals.append(intervals[0].as_opposite_strand().shift(5))
+        builder.set_data(intervals[0], np.zeros((20//5, 1), np.float16))
+        builder.set_data(intervals[1], np.ones((20//5, 1), np.float16))
+        builder.finalize()
+
+        with GenomeTrack(self.tmpfile) as track:
+            self.assertEqual(set(intervals), set(track.intervals))
+
+    def test_out(self):
+        # Build a valid .gtrack file for some tests
+        builder = self.make_builder(strandedness="strand_aware")
+        interval = Interval('chr1', '+', 10, 30, builder.refg)
+        builder.set_data(interval, np.ones((20, 1), np.float16))
+        builder.finalize()
+
+        with GenomeTrack(self.tmpfile) as track:
+            out = np.zeros((20, 1), np.float16)
+            res = track(interval, out=out)
+            np.testing.assert_equal(out, np.ones((20, 1), np.float16))
+            np.testing.assert_equal(res, np.ones((20, 1), np.float16))
+
+            out = np.zeros((20, 1), np.float32)
+            res = track(interval, out=out)
+            np.testing.assert_equal(out, np.ones((20, 1), np.float32))
+
+            out = np.zeros((40, 1), np.float16)
+            res = track(interval, out=out[::2])
+            np.testing.assert_equal(out[::2], np.ones((20, 1), np.float16))
+            np.testing.assert_equal(out[1::2], np.zeros((20, 1), np.float16))
+
+
+            with self.assertRaisesRegex(ValueError, "Dimension"):
+                out = np.zeros((20, 1, 1), np.float16)
+                track(interval, out=out)
+
+            with self.assertRaisesRegex(ValueError, "Row"):
+                out = np.zeros((19, 1), np.float16)
+                track(interval, out=out)
+
+            with self.assertRaisesRegex(ValueError, "Column"):
+                out = np.zeros((20, 2), np.float16)
+                track(interval, out=out)
+
+            with self.assertRaisesRegex(ValueError, "writable"):
+                out = np.zeros((20, 1), np.float16)
+                out.flags.writeable = False
+                track(interval, out=out)
+
+            with self.assertRaisesRegex(ValueError, "Negative"):
+                out = np.zeros((20, 1), np.float16)
+                track(interval, out=out[::-1])
+
+    def test_sparsity(self):
+        def test(dim):
+            builder = self.make_builder(strandedness="strand_aware", dim=dim)
+            interval = Interval("chr1", "+", 10, 60, builder.refg)
+            data = np.ones(50 * dim, dtype=np.float16).reshape((50, dim))
+
+            builder.set_data(interval, data)
+            builder.finalize()
+
+            full_size = Path(self.tmpfile).stat().st_size
+            with GenomeTrack(self.tmpfile) as track:
+                res = track(interval)
+                np.testing.assert_equal(res, data)
+
+            builder = self.make_builder(strandedness="strand_aware", dim=dim)
+            builder.set_default_value(1)
+            builder.set_sparsity(48)
+            builder.set_data(interval, data)
+            builder.finalize()
+
+            self.assertLess(Path(self.tmpfile).stat().st_size, full_size)
+            with GenomeTrack(self.tmpfile) as track:
+                res = track(interval)
+                np.testing.assert_equal(res, data)
+
+        for dim in range(1, 6):
+            test(dim)
 
     def _try_parse_wig(self,
                        dim,

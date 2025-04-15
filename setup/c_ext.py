@@ -75,7 +75,6 @@ if toolset == "gcc":
     libraries += [
         # python is not linked for conda's python
         # https://github.com/ContinuumIO/anaconda-issues/issues/9078#issuecomment-378321357
-        "fmt",
         "z",
     ]
 
@@ -122,22 +121,15 @@ if toolset == "gcc":
             "-Wconditional-uninitialized",  # gcc does better here but enable for safety
             "-Wuninitialized",
             "-Wno-unknown-warning-option",
-            "-mtune=skylake",
-            # Rosetta 2 cannot translate AVX
-            # https://developer.apple.com/documentation/apple-silicon/about-the-rosetta-translation-environment
-            "-mno-avx",
-            "-mno-avx2",
-            "-mno-avx512f",
         ]
 
         extra_link_args += [
             osx_sdk,
+            "-isysroot{}".format(os.environ.get("CONDA_BUILD_SYSROOT", "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk")),
         ]
-
-    else:
-        extra_compile_args += [
-            "-march=broadwell",
-            "-mtune=znver2",
+        define_macros += [
+            # https://conda-forge.org/docs/maintainer/knowledge_base/#newer-c-features-with-old-sdk
+            ("_LIBCPP_DISABLE_AVAILABILITY", None),
         ]
 
     extra_compile_args += opt_args
@@ -160,7 +152,6 @@ elif toolset == "msvc":
     ]
 
     libraries += [
-        "fmt",
         "zlib",
     ]
 
@@ -355,9 +346,7 @@ def windows_parallel_ccompile(self,
 
 
 if sys.platform == "win32":
-    import distutils.msvccompiler
-    import distutils.msvc9compiler
-    distutils.msvccompiler.MSVCCompiler.compile = windows_parallel_ccompile
-    distutils.msvc9compiler.MSVCCompiler.compile = windows_parallel_ccompile
+    import distutils._msvccompiler
+    distutils._msvccompiler.MSVCCompiler.compile = windows_parallel_ccompile
 else:
     distutils.ccompiler.CCompiler.compile = gcc_parallel_ccompile

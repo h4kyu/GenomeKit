@@ -11,10 +11,10 @@ Copyright (C) 2016-2023 Deep Genomics Inc. All Rights Reserved.
 #include "refg.h"
 #include "util.h"
 
-#include <algorithm>
 #include <climits>
 #include <concepts>
-#include <fmt/format.h>
+#include <format>
+#include <functional>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -24,7 +24,6 @@ BEGIN_NAMESPACE_GK
 using std::max;
 using std::min;
 using std::string;
-using std::vector;
 
 using pos_t = int32_t;          // Position within a coordinate system
 enum class strand_t : uint8_t { // Strand index [+,-]
@@ -32,7 +31,6 @@ enum class strand_t : uint8_t { // Strand index [+,-]
 	pos_strand,
 	num_strand // [+,-] is two unique identifiers mapped to [0,1]
 };
-inline auto format_as(strand_t x) { return as_ordinal(x); }
 
 using offset_t = uint32_t;   // Byte offset type. A pointer stored as 4-byte relative offset rather than as 8-byte
 							 // absolute pointer. For easy serialization and memory savings.
@@ -178,25 +176,41 @@ template <typename T> struct get_pos5 {
 	INLINE pos_t operator()(const T& elem) { return elem.pos5; }
 };
 
-inline bool is_interval_in_list(const interval_t& i, const std::vector<interval_t>& list)
-{
-	// TODO: currently the set of intervals is not indexed, so if we ever want to work with
-	// a large allow/exclude, may be worth building an interval_table; doing so would
-	// require some changes to the table<T,I> template, since right now table<> assumes it's
-	// a view of a memory-mapped file, and therefore does not 'own' its memory.
-	return list.end() != std::find_if(begin(list), end(list), [&i](auto l) { return i.overlaps(l); });
-}
+class interval_filter {
+public:
+	using interval_fn_t = std::function<void(interval_t)>;
+
+	explicit interval_filter(interval_fn_t validate_interval = {});
+	void allow(interval_t i);
+	void exclude(interval_t i);
+	bool filter(interval_t i) const;
+	void validate() const; // revalidate the intervals
+
+private:
+	std::function<void(interval_t)> _validate_interval;
+	std::vector<interval_t>         _allow;
+	std::vector<interval_t>         _exclude;
+};
 
 END_NAMESPACE_GK
 
 template <typename T>
 	requires std::derived_from<T, gk::interval_t>
-struct fmt::formatter<T> : fmt::formatter<std::string> {
+struct std::formatter<T> : std::formatter<std::string> {
 	// T instead of interval_t since as_str is not virtual
 	template <typename FormatCtx>
 	auto format(const T& x, FormatCtx& ctx) const
 	{
-		return fmt::formatter<std::string>::format(x.as_str(), ctx);
+		return std::formatter<std::string>::format(x.as_str(), ctx);
+	}
+};
+
+template <>
+struct std::formatter<gk::strand_t> : std::formatter<std::uint8_t> {
+	template <typename FormatCtx>
+	auto format(gk::strand_t x, FormatCtx& ctx) const
+	{
+		return std::formatter<std::uint8_t>::format(static_cast<std::uint8_t>(x), ctx);
 	}
 };
 

@@ -2,11 +2,18 @@
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
+
+import platform
 import unittest
 import os
 from tempfile import mkstemp
 import genome_kit._twobitutils as _twobitutils
-from twobitreader import TwoBitFile
+
+# twobitreader unsupported on Windows, bioconda dependencies unsupported on conda-forge
+# TODO: replace CI with a conda-forge specific env var
+_SKIP_TWOBITREADER_TESTS = platform.system() == "Windows"  or "CI" in os.environ
+if not _SKIP_TWOBITREADER_TESTS:
+    from twobitreader import TwoBitFile
 
 
 def _check_write(test, seqs):
@@ -46,6 +53,8 @@ def _check_write_read(test, seqs):
 
 
 class TwoBitWriteEmptyTest(unittest.TestCase):
+    @unittest.skipIf(_SKIP_TWOBITREADER_TESTS,
+                     "twobitreader unsupported on Windows, bioconda dependencies unsupported on conda-forge")
     def test(self):
         seqs = {'x': ''}
         _check_write_read(self, seqs)
@@ -55,6 +64,8 @@ class TwoBitWriteEmptyTest(unittest.TestCase):
 
 
 class TwoBitWriteSimpleTest(unittest.TestCase):
+    @unittest.skipIf(_SKIP_TWOBITREADER_TESTS,
+                     "twobitreader unsupported on Windows, bioconda dependencies unsupported on conda-forge")
     def test(self):
         # Multiple of 4
         seqs = {'chr1': 'ACGTAACCGGTT', 'chr2': ''}
@@ -66,6 +77,8 @@ class TwoBitWriteSimpleTest(unittest.TestCase):
 
 
 class TwoBitWriteMaskTest(unittest.TestCase):
+    @unittest.skipIf(_SKIP_TWOBITREADER_TESTS,
+                     "twobitreader unsupported on Windows, bioconda dependencies unsupported on conda-forge")
     def test(self):
         seqs = {'chr1': 'ACgtAACCggTTA'}
         _check_write_read(self, seqs)
@@ -75,6 +88,8 @@ class TwoBitWriteMaskTest(unittest.TestCase):
 
 
 class TwoBitWriteNBlockTest(unittest.TestCase):
+    @unittest.skipIf(_SKIP_TWOBITREADER_TESTS,
+                     "twobitreader unsupported on Windows, bioconda dependencies unsupported on conda-forge")
     def test(self):
         seqs = {'chr1': 'NNGTNNNNGGNNN'}
         _check_write_read(self, seqs)
@@ -84,6 +99,8 @@ class TwoBitWriteNBlockTest(unittest.TestCase):
 
 
 class TwoBitWriteMaskNBlockTest(unittest.TestCase):
+    @unittest.skipIf(_SKIP_TWOBITREADER_TESTS,
+                     "twobitreader unsupported on Windows, bioconda dependencies unsupported on conda-forge")
     def test(self):
         seqs = {'chr1': 'ACannNACNnngTT'}
         _check_write_read(self, seqs)
@@ -93,6 +110,8 @@ class TwoBitWriteMaskNBlockTest(unittest.TestCase):
 
 
 class TwoBitWriteMultiSequenceTest(unittest.TestCase):
+    @unittest.skipIf(_SKIP_TWOBITREADER_TESTS,
+                     "twobitreader unsupported on Windows, bioconda dependencies unsupported on conda-forge")
     def test(self):
         seqs = {'chr1': 'ACannNACNnngTT', 'chr1_extra': 'TTgcCNCGGGGNNnnnnccaAA'}
         _check_write_read(self, seqs)

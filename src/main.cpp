@@ -8,7 +8,6 @@ Copyright (C) 2016-2023 Deep Genomics Inc. All Rights Reserved.
 
 #include "genome_kit.h"
 #include "gk_time.h"
-#include "format.h"
 #include "half.h"
 #include "jralign.h"
 #include "jrdist.h"
@@ -104,7 +103,7 @@ template <> bool track_unittest_value_gen<bool>(int value_index, const track_uni
 template <typename data_t>
 void test_genome_track_dtype_etype(genome_track::etype_t etype)
 {
-	print("track_unittest(dtype={}, etype={}) ... ", genome_track::dtype_as_cstr[dtype_traits<data_t>::dtype], genome_track::etype_as_cstr[etype]);
+	print("track_unittest(dtype={}, etype={}) ... ", genome_track::dtype_as_cstr[as_ordinal(dtype_traits<data_t>::dtype)], genome_track::etype_as_cstr[etype]);
 
 	track_unittest_value_range value_ranges[genome_track::num_etype] = {
 		{    1,    1,    1 },  // m0   -- generate [1] always
@@ -398,7 +397,7 @@ void write_ralign_test(const vector<string>& samfiles)
 		ralign.set_min_reads(3);
 		ralign.set_min_overhang(5);
 		for (auto& i : exclude)
-			ralign.exclude(i);
+			ralign.get_interval_filter().exclude(i);
 		ralign.add(samfile.c_str());
 		ralign.finalize();
 	}
