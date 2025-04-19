@@ -3,15 +3,15 @@ run-name: build-wheels
 
 on:
   push:
-    tags: [ "v*" ]
-    paths:
-      - ".github/workflows/**"
-      - "conda-recipe/**"
-      - "genome_kit/**"
-      - "setup.py"
-      - "setup/**"
-      - "src/**"
-      - "tests/**"
+#    tags: [ "v*" ]
+#    paths:
+#      - ".github/workflows/**"
+#      - "conda-recipe/**"
+#      - "genome_kit/**"
+#      - "setup.py"
+#      - "setup/**"
+#      - "src/**"
+#      - "tests/**"
 
 jobs:
   build:
