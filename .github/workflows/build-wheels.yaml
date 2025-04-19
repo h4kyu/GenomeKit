@@ -3,7 +3,7 @@ run-name: build-wheels
 
 on:
   push:
-    tags: [ "v*" ]
+#    tags: [ "v*" ]
 #    paths:
 #      - ".github/workflows/**"
 #      - "conda-recipe/**"
